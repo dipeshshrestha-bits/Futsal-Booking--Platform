@@ -1,0 +1,50 @@
+
+.env
+.env.local
+.env.*.local
+appsettings.Development.json
+appsettings.Production.json
+*.pfx
+*.key
+
+#  Node / React (futsal_frontend) 
+node_modules/
+dist/
+dist-ssr/
+build/
+.vite/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.eslintcache
+
+# .NET (Futsal_Backend)
+bin/
+obj/
+out/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.suo
+*.userprefs
+*.cache
+.vs/
+TestResults/
+publish/
+*.nupkg
+
+# Editors 
+.vscode/
+.idea/
+*.swp
+
+#  OS 
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs 
+*.log
+logs/
