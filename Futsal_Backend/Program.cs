@@ -455,39 +455,39 @@ app.MapControllers();
 // HEALTH CHECK
 // ============================================================
 
-app.MapGet(
-    "/api/health",
-    async (ApplicationDbContext db) =>
+app.MapGet("/api/health", async (ApplicationDbContext db) =>
+{
+    try
+    {
+        await db.Database.OpenConnectionAsync();
+
+        return Results.Ok(new
+        {
+            status = "ok",
+            database = true
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Ok(new
+        {
+            status = "error",
+            database = false,
+            error = ex.Message,
+            innerError = ex.InnerException?.Message
+        });
+    }
+    finally
     {
         try
         {
-            await db.Database.OpenConnectionAsync();
-
-            return Results.Ok(new
-            {
-                status = "ok",
-                database = true,
-                environment = app.Environment.EnvironmentName,
-                time = DateTime.UtcNow
-            });
-        }
-        catch (Exception ex)
-        {
-            return Results.Ok(new
-            {
-                status = "error",
-                database = false,
-                environment = app.Environment.EnvironmentName,
-                error = ex.Message,
-                innerError = ex.InnerException?.Message
-            });
-        }
-        finally
-        {
             await db.Database.CloseConnectionAsync();
         }
-    })
-    .WithTags("Health");
+        catch
+        {
+        }
+    }
+});
 
 
 // ============================================================
