@@ -15,7 +15,6 @@ var builder = WebApplication.CreateBuilder(args);
 
 var configuration = builder.Configuration;
 
-
 // ============================================================
 // SETTINGS
 // ============================================================
@@ -43,23 +42,17 @@ builder.Services.Configure<DatabaseOptions>(
 
 
 // ============================================================
-// JWT
+// JWT CONFIGURATION
 // ============================================================
 
 var jwt = configuration
     .GetSection(JwtOptions.SectionName)
-    .Get<JwtOptions>();
-
-if (jwt == null)
-{
-    throw new InvalidOperationException(
-        "JWT configuration is missing.");
-}
+    .Get<JwtOptions>() ?? new JwtOptions();
 
 if (string.IsNullOrWhiteSpace(jwt.Secret))
 {
     throw new InvalidOperationException(
-        "Jwt:Secret is missing.");
+        "JWT Secret is missing. Configure Jwt:Secret in appsettings.json or production environment variables.");
 }
 
 if (jwt.Secret.Length < 32)
@@ -82,7 +75,7 @@ if (string.IsNullOrWhiteSpace(jwt.Audience))
 
 
 // ============================================================
-// DATABASE
+// DATABASE CONNECTION
 // ============================================================
 
 var connectionString =
@@ -91,8 +84,13 @@ var connectionString =
 if (string.IsNullOrWhiteSpace(connectionString))
 {
     throw new InvalidOperationException(
-        "ConnectionStrings:DefaultConnection is missing.");
+        "ConnectionStrings:DefaultConnection is missing. Configure your production PostgreSQL connection string.");
 }
+
+
+// ============================================================
+// DATABASE
+// ============================================================
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
@@ -101,7 +99,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 
 
 // ============================================================
-// SERVICES
+// CORE SERVICES
 // ============================================================
 
 builder.Services.AddSingleton<IAppClock, AppClock>();
@@ -143,7 +141,7 @@ builder.Services.AddScoped<
 
 
 // ============================================================
-// CONTROLLERS
+// CONTROLLERS + JSON
 // ============================================================
 
 builder.Services
@@ -166,18 +164,16 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 {
     options.InvalidModelStateResponseFactory = context =>
         new BadRequestObjectResult(
-            ApiResponse.FromModelState(
-                context.ModelState));
+            ApiResponse.FromModelState(context.ModelState));
 });
 
 
 // ============================================================
-// AUTHENTICATION
+// JWT AUTHENTICATION
 // ============================================================
 
 builder.Services
-    .AddAuthentication(
-        JwtBearerDefaults.AuthenticationScheme)
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
         options.MapInboundClaims = false;
@@ -195,13 +191,11 @@ builder.Services
 
                 IssuerSigningKey =
                     new SymmetricSecurityKey(
-                        Encoding.UTF8.GetBytes(
-                            jwt.Secret)),
+                        Encoding.UTF8.GetBytes(jwt.Secret)),
 
                 ValidateLifetime = true,
 
-                ClockSkew =
-                    TimeSpan.FromMinutes(1),
+                ClockSkew = TimeSpan.FromMinutes(1),
 
                 RoleClaimType = "role",
                 NameClaimType = "username"
@@ -253,8 +247,7 @@ var allowedOrigins =
         .GetSection("Cors:AllowedOrigins")
         .Get<string[]>();
 
-if (allowedOrigins == null ||
-    allowedOrigins.Length == 0)
+if (allowedOrigins == null || allowedOrigins.Length == 0)
 {
     allowedOrigins = new[]
     {
@@ -291,7 +284,7 @@ builder.Services.AddSwaggerGen(options =>
             Title = "Futsal Booking API",
             Version = "v1",
             Description =
-                "Futsal Booking API"
+                "Admin, Owner and public Player endpoints."
         });
 
     options.AddSecurityDefinition(
@@ -299,19 +292,12 @@ builder.Services.AddSwaggerGen(options =>
         new OpenApiSecurityScheme
         {
             Name = "Authorization",
-
-            Type =
-                SecuritySchemeType.Http,
-
+            Type = SecuritySchemeType.Http,
             Scheme = "bearer",
-
             BearerFormat = "JWT",
-
-            In =
-                ParameterLocation.Header,
-
+            In = ParameterLocation.Header,
             Description =
-                "Enter JWT token."
+                "Paste your JWT token here."
         });
 
     options.AddSecurityRequirement(
@@ -325,11 +311,9 @@ builder.Services.AddSwaggerGen(options =>
                         {
                             Type =
                                 ReferenceType.SecurityScheme,
-
                             Id = "Bearer"
                         }
                 },
-
                 Array.Empty<string>()
             }
         });
@@ -338,14 +322,13 @@ builder.Services.AddSwaggerGen(options =>
         () => new OpenApiSchema
         {
             Type = "string",
-            Example =
-                new OpenApiString("18:00")
+            Example = new OpenApiString("18:00")
         });
 });
 
 
 // ============================================================
-// BUILD
+// BUILD APPLICATION
 // ============================================================
 
 var app = builder.Build();
@@ -355,24 +338,36 @@ var app = builder.Build();
 // DATABASE SEEDING
 // ============================================================
 //
-// IMPORTANT:
-// For the FIRST deployment, you can disable seeding
-// until the PostgreSQL database is confirmed working.
+// If your DbSeeder creates the default admin account,
+// keep this enabled.
 //
-// Set:
+// If your database isn't ready yet, temporarily set:
+//
 // "Database": {
 //     "SeedOnStartup": false
 // }
+//
 // ============================================================
 
 var seedOnStartup =
-    configuration.GetValue<bool>(
-        "Database:SeedOnStartup");
+    configuration.GetValue<bool?>(
+        "Database:SeedOnStartup") ?? true;
 
 if (seedOnStartup)
 {
-    await DbSeeder.SeedAsync(
-        app.Services);
+    try
+    {
+        await DbSeeder.SeedAsync(app.Services);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine(
+            "DATABASE SEEDING FAILED:");
+
+        Console.WriteLine(ex);
+
+        throw;
+    }
 }
 
 
@@ -380,8 +375,7 @@ if (seedOnStartup)
 // EXCEPTION HANDLING
 // ============================================================
 
-app.UseMiddleware<
-    ExceptionHandlingMiddleware>();
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 
 // ============================================================
@@ -390,8 +384,7 @@ app.UseMiddleware<
 
 var swaggerEnabled =
     app.Environment.IsDevelopment()
-    ||
-    configuration.GetValue<bool>(
+    || configuration.GetValue<bool>(
         "Swagger:EnableInProduction");
 
 if (swaggerEnabled)
@@ -408,6 +401,11 @@ if (swaggerEnabled)
 
 // ============================================================
 // HTTPS
+// ============================================================
+//
+// SmarterASP normally handles HTTPS through IIS.
+//
+// Keep this enabled when your site has HTTPS configured.
 // ============================================================
 
 if (!app.Environment.IsDevelopment())
@@ -438,15 +436,10 @@ app.UseCors("Frontend");
 
 
 // ============================================================
-// AUTHENTICATION
+// AUTHENTICATION / AUTHORIZATION
 // ============================================================
 
 app.UseAuthentication();
-
-
-// ============================================================
-// AUTHORIZATION
-// ============================================================
 
 app.UseAuthorization();
 
@@ -466,19 +459,21 @@ app.MapGet(
     "/api/health",
     async (ApplicationDbContext db) =>
     {
-        var database =
+        var databaseConnected =
             await db.Database.CanConnectAsync();
 
         return Results.Ok(
-            new
-            {
-                status = "ok",
-                database = database,
-                environment =
-                    app.Environment.EnvironmentName,
-                time = DateTime.UtcNow
-            });
-    });
+            ApiResponse<object>.Ok(
+                new
+                {
+                    status = "ok",
+                    database = databaseConnected,
+                    environment =
+                        app.Environment.EnvironmentName,
+                    time = DateTime.UtcNow
+                }));
+    })
+    .WithTags("Health");
 
 
 // ============================================================
@@ -494,7 +489,8 @@ app.MapGet(
                 message =
                     "Futsal Booking API is running.",
                 status = "ok"
-            }));
+            }))
+    .ExcludeFromDescription();
 
 
 // ============================================================
