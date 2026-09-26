@@ -461,23 +461,30 @@ app.MapGet(
     {
         try
         {
-            var databaseConnected =
-                await db.Database.CanConnectAsync();
+            await db.Database.OpenConnectionAsync();
 
-            return Results.Ok(
-                new
-                {
-                    status = "ok",
-                    database = databaseConnected,
-                    environment = app.Environment.EnvironmentName,
-                    time = DateTime.UtcNow
-                });
+            return Results.Ok(new
+            {
+                status = "ok",
+                database = true,
+                environment = app.Environment.EnvironmentName,
+                time = DateTime.UtcNow
+            });
         }
         catch (Exception ex)
         {
-            return Results.Problem(
-                detail: ex.ToString(),
-                title: "Database connection failed");
+            return Results.Ok(new
+            {
+                status = "error",
+                database = false,
+                environment = app.Environment.EnvironmentName,
+                error = ex.Message,
+                innerError = ex.InnerException?.Message
+            });
+        }
+        finally
+        {
+            await db.Database.CloseConnectionAsync();
         }
     })
     .WithTags("Health");
