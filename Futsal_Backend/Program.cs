@@ -52,7 +52,7 @@ var jwt = configuration
 if (string.IsNullOrWhiteSpace(jwt.Secret))
 {
     throw new InvalidOperationException(
-        "JWT Secret is missing. Configure Jwt:Secret in appsettings.json or production environment variables.");
+        "JWT Secret is missing. Configure Jwt:Secret.");
 }
 
 if (jwt.Secret.Length < 32)
@@ -84,12 +84,12 @@ var connectionString =
 if (string.IsNullOrWhiteSpace(connectionString))
 {
     throw new InvalidOperationException(
-        "ConnectionStrings:DefaultConnection is missing. Configure your production PostgreSQL connection string.");
+        "ConnectionStrings:DefaultConnection is missing.");
 }
 
 
 // ============================================================
-// DATABASE
+// DATABASE - POSTGRESQL
 // ============================================================
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -337,21 +337,10 @@ var app = builder.Build();
 // ============================================================
 // DATABASE SEEDING
 // ============================================================
-//
-// If your DbSeeder creates the default admin account,
-// keep this enabled.
-//
-// If your database isn't ready yet, temporarily set:
-//
-// "Database": {
-//     "SeedOnStartup": false
-// }
-//
-// ============================================================
 
 var seedOnStartup =
     configuration.GetValue<bool?>(
-        "Database:SeedOnStartup") ?? true;
+        "Database:SeedOnStartup") ?? false;
 
 if (seedOnStartup)
 {
@@ -402,11 +391,6 @@ if (swaggerEnabled)
 // ============================================================
 // HTTPS
 // ============================================================
-//
-// SmarterASP normally handles HTTPS through IIS.
-//
-// Keep this enabled when your site has HTTPS configured.
-// ============================================================
 
 if (!app.Environment.IsDevelopment())
 {
@@ -455,14 +439,50 @@ app.MapControllers();
 // HEALTH CHECK
 // ============================================================
 
-app.MapGet("/api/health", () =>
-{
-    return Results.Ok(new
+app.MapGet(
+    "/api/health",
+    async (ApplicationDbContext db) =>
     {
-        test = "NEW-HEALTH-CODE-999",
-        time = DateTime.UtcNow
-    });
-});
+        try
+        {
+            await db.Database.OpenConnectionAsync();
+
+            return Results.Ok(
+                new
+                {
+                    status = "ok",
+                    database = true,
+                    environment =
+                        app.Environment.EnvironmentName,
+                    time = DateTime.UtcNow
+                });
+        }
+        catch (Exception ex)
+        {
+            return Results.Ok(
+                new
+                {
+                    status = "error",
+                    database = false,
+                    environment =
+                        app.Environment.EnvironmentName,
+                    error = ex.Message,
+                    innerError =
+                        ex.InnerException?.Message
+                });
+        }
+        finally
+        {
+            try
+            {
+                await db.Database.CloseConnectionAsync();
+            }
+            catch
+            {
+            }
+        }
+    })
+    .WithTags("Health");
 
 
 // ============================================================
