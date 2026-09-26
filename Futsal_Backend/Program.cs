@@ -489,17 +489,14 @@ app.MapGet(
 // ROOT
 // ============================================================
 
-app.MapGet(
-    "/",
-    () =>
-        Results.Ok(
-            new
-            {
-                message =
-                    "Futsal Booking API is running.",
-                status = "ok"
-            }))
-    .ExcludeFromDescription();
+app.MapGet("/", () =>
+{
+    return Results.Ok(new
+    {
+        test = "NEW CODE 999",
+        time = DateTime.UtcNow
+    });
+});
 
 
 // ============================================================
