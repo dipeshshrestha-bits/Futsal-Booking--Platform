@@ -459,19 +459,26 @@ app.MapGet(
     "/api/health",
     async (ApplicationDbContext db) =>
     {
-        var databaseConnected =
-            await db.Database.CanConnectAsync();
+        try
+        {
+            var databaseConnected =
+                await db.Database.CanConnectAsync();
 
-        return Results.Ok(
-            ApiResponse<object>.Ok(
+            return Results.Ok(
                 new
                 {
                     status = "ok",
                     database = databaseConnected,
-                    environment =
-                        app.Environment.EnvironmentName,
+                    environment = app.Environment.EnvironmentName,
                     time = DateTime.UtcNow
-                }));
+                });
+        }
+        catch (Exception ex)
+        {
+            return Results.Problem(
+                detail: ex.ToString(),
+                title: "Database connection failed");
+        }
     })
     .WithTags("Health");
 
