@@ -455,38 +455,13 @@ app.MapControllers();
 // HEALTH CHECK
 // ============================================================
 
-app.MapGet("/api/health", async (ApplicationDbContext db) =>
+app.MapGet("/api/health", () =>
 {
-    try
+    return Results.Ok(new
     {
-        await db.Database.OpenConnectionAsync();
-
-        return Results.Ok(new
-        {
-            status = "ok",
-            database = true
-        });
-    }
-    catch (Exception ex)
-    {
-        return Results.Ok(new
-        {
-            status = "error",
-            database = false,
-            error = ex.Message,
-            innerError = ex.InnerException?.Message
-        });
-    }
-    finally
-    {
-        try
-        {
-            await db.Database.CloseConnectionAsync();
-        }
-        catch
-        {
-        }
-    }
+        test = "NEW-HEALTH-CODE-999",
+        time = DateTime.UtcNow
+    });
 });
 
 
