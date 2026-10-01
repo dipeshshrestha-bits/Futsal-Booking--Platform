@@ -240,6 +240,8 @@ builder.Services.AddAuthorization();
 
 // ============================================================
 // CORS
+// (Not needed when the frontend is served from the same site,
+//  kept so local development with a separate frontend still works)
 // ============================================================
 
 var allowedOrigins =
@@ -251,7 +253,9 @@ if (allowedOrigins == null || allowedOrigins.Length == 0)
 {
     allowedOrigins = new[]
     {
-        "https://dipeshstha-001-site1.etempurl.com"
+        "https://dipeshstha-001-site1.etempurl.com",
+        "http://localhost:5173",
+        "http://localhost:3000"
     };
 }
 
@@ -399,8 +403,11 @@ if (!app.Environment.IsDevelopment())
 
 
 // ============================================================
-// STATIC FILES
+// STATIC FILES (frontend build lives in wwwroot)
+// UseDefaultFiles MUST come before UseStaticFiles
 // ============================================================
+
+app.UseDefaultFiles();
 
 app.UseStaticFiles();
 
@@ -486,17 +493,17 @@ app.MapGet(
 
 
 // ============================================================
-// ROOT
+// SPA FALLBACK - MUST BE LAST
+// Any path that is not /api/... or /swagger... returns
+// index.html so frontend routes (/login, /bookings) work
+// on page refresh.
+// The old "/" test endpoint was removed because it blocked
+// the frontend from loading.
 // ============================================================
 
-app.MapGet("/", () =>
-{
-    return Results.Ok(new
-    {
-        test = "NEW CODE 999",
-        time = DateTime.UtcNow
-    });
-});
+app.MapFallbackToFile(
+    "{*path:regex(^(?!api/|swagger).*$)}",
+    "index.html");
 
 
 // ============================================================
