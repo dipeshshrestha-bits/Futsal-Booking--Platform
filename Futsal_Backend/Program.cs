@@ -339,27 +339,52 @@ var app = builder.Build();
 
 
 // ============================================================
-// DATABASE SEEDING
+// DATABASE MIGRATION + SEEDING
+// Migration runs first (creates tables), then seeding.
+// Neither one crashes the app, so /api/health stays reachable
+// and you can read the real error from the log.
 // ============================================================
+
+var migrateOnStartup =
+    configuration.GetValue<bool?>(
+        "Database:MigrateOnStartup") ?? true;
 
 var seedOnStartup =
     configuration.GetValue<bool?>(
         "Database:SeedOnStartup") ?? false;
+
+if (migrateOnStartup)
+{
+    try
+    {
+        using var scope = app.Services.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        await db.Database.MigrateAsync();
+
+        Console.WriteLine("DATABASE MIGRATION COMPLETED.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine("DATABASE MIGRATION FAILED:");
+        Console.WriteLine(ex);
+    }
+}
 
 if (seedOnStartup)
 {
     try
     {
         await DbSeeder.SeedAsync(app.Services);
+
+        Console.WriteLine("DATABASE SEEDING COMPLETED.");
     }
     catch (Exception ex)
     {
-        Console.WriteLine(
-            "DATABASE SEEDING FAILED:");
-
+        Console.WriteLine("DATABASE SEEDING FAILED:");
         Console.WriteLine(ex);
-
-        throw;
     }
 }
 
@@ -497,8 +522,6 @@ app.MapGet(
 // Any path that is not /api/... or /swagger... returns
 // index.html so frontend routes (/login, /bookings) work
 // on page refresh.
-// The old "/" test endpoint was removed because it blocked
-// the frontend from loading.
 // ============================================================
 
 app.MapFallbackToFile(
